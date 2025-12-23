@@ -2,6 +2,8 @@
 
 A desktop editor for [Cataclysm: Bright Nights](https://github.com/cataclysmbnteam/Cataclysm-BN) mod JSON files.
 
+99% vibe coded...
+
 ## Features
 
 - **Entity Browser**: Browse and search all entities across loaded content packs with filtering by type and pack
