@@ -173,7 +173,7 @@ export function MapEditor({ packs, loadOrder, enabledPacks, gamePath }: MapEdito
     <div className="flex flex-1 h-full">
       {/* Left: Map list */}
       <div className="w-80 border-r border-zinc-700 flex flex-col">
-        <div className="px-3 py-2 text-sm font-medium text-zinc-300 border-b border-zinc-700 bg-zinc-800 flex items-center justify-between">
+        <div className="px-3 py-1 text-xs font-medium text-zinc-400 border-b border-zinc-700 bg-zinc-800 flex items-center justify-between">
           <span>Maps</span>
           <TilesetSelector
             gamePath={gamePath}
@@ -188,12 +188,12 @@ export function MapEditor({ packs, loadOrder, enabledPacks, gamePath }: MapEdito
         />
       </div>
 
-      {/* Center: Editor area */}
+      {/* Right: Editor area with bottom palette */}
       <div className="flex-1 flex flex-col">
         {selectedMap && mapEditor.grid.length > 0 ? (
           <>
             {/* Header with map info */}
-            <div className="px-4 py-2 border-b border-zinc-700 bg-zinc-800 flex items-center justify-between">
+            <div className="px-4 py-1 border-b border-zinc-700 bg-zinc-800 flex items-center justify-between">
               <div className="flex items-center gap-4">
                 <span className="font-mono text-sm text-zinc-100">
                   {selectedMap.omTerrain}
@@ -215,7 +215,9 @@ export function MapEditor({ packs, loadOrder, enabledPacks, gamePath }: MapEdito
             {/* Toolbar */}
             <MapToolbar
               tool={mapEditor.tool}
+              boxFilled={mapEditor.boxFilled}
               onToolChange={mapEditor.setTool}
+              onToggleBoxFilled={mapEditor.toggleBoxFilled}
               selectedSymbol={mapEditor.selectedSymbol}
               palette={mapEditor.palette}
               canUndo={mapEditor.canUndo}
@@ -232,8 +234,26 @@ export function MapEditor({ packs, loadOrder, enabledPacks, gamePath }: MapEdito
               tileset={tilesetHook.tileset}
               selectedSymbol={mapEditor.selectedSymbol}
               tool={mapEditor.tool}
+              boxFilled={mapEditor.boxFilled}
               onCellChange={mapEditor.updateCell}
               onCellsChange={mapEditor.updateCells}
+              onCommitPaintStroke={mapEditor.commitPaintStroke}
+              onToolChange={mapEditor.setTool}
+              onSelectSymbol={mapEditor.selectSymbol}
+              onGetSymbolAt={mapEditor.getSymbolAt}
+            />
+
+            {/* Bottom: Palette panel */}
+            <MapPalette
+              palette={mapEditor.palette}
+              terrainTypes={terrainTypes}
+              furnitureTypes={furnitureTypes}
+              terrainLookup={terrainLookup}
+              tileset={tilesetHook.tileset}
+              selectedSymbol={mapEditor.selectedSymbol}
+              onSelectSymbol={mapEditor.selectSymbol}
+              onUpdateSymbol={mapEditor.updateSymbolMapping}
+              onAddSymbol={mapEditor.addSymbol}
             />
           </>
         ) : mapEditor.loading ? (
@@ -253,19 +273,6 @@ export function MapEditor({ packs, loadOrder, enabledPacks, gamePath }: MapEdito
           </div>
         )}
       </div>
-
-      {/* Right: Palette panel */}
-      {selectedMap && mapEditor.grid.length > 0 && (
-        <MapPalette
-          palette={mapEditor.palette}
-          terrainTypes={terrainTypes}
-          furnitureTypes={furnitureTypes}
-          selectedSymbol={mapEditor.selectedSymbol}
-          onSelectSymbol={mapEditor.selectSymbol}
-          onUpdateSymbol={mapEditor.updateSymbolMapping}
-          onAddSymbol={mapEditor.addSymbol}
-        />
-      )}
     </div>
   );
 }

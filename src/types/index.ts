@@ -205,12 +205,13 @@ export interface ResolvedSymbol {
 }
 
 // Map editor types
-export type MapTool = "paint" | "line" | "box";
+export type MapTool = "hand" | "paint" | "line" | "box" | "fill" | "eyedropper";
 
 export interface MapEditorState {
   grid: string[][];
   palette: ResolvedSymbol[];
   selectedSymbol: string | null;
   tool: MapTool;
+  boxFilled: boolean; // true = filled box, false = outline only
   isDirty: boolean;
 }

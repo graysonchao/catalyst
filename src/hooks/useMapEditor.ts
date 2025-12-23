@@ -13,6 +13,7 @@ interface UseMapEditorResult {
   // Selection state
   selectedSymbol: string | null;
   tool: MapTool;
+  boxFilled: boolean;
 
   // Status
   isDirty: boolean;
@@ -27,8 +28,10 @@ interface UseMapEditorResult {
   loadEntity: (entity: EntityData, gamePath: string) => Promise<void>;
   selectSymbol: (symbol: string) => void;
   setTool: (tool: MapTool) => void;
+  toggleBoxFilled: () => void;
   updateCell: (row: number, col: number, symbol: string) => void;
   updateCells: (cells: Array<{ row: number; col: number; symbol: string }>) => void;
+  commitPaintStroke: () => void; // Call at end of paint stroke to batch undo
   updateSymbolMapping: (
     oldSymbol: string,
     newSymbol: string,
@@ -40,6 +43,7 @@ interface UseMapEditorResult {
   undo: () => void;
   redo: () => void;
   reset: () => void;
+  getSymbolAt: (row: number, col: number) => string | null; // For eyedropper
 }
 
 export function useMapEditor(): UseMapEditorResult {
@@ -47,7 +51,8 @@ export function useMapEditor(): UseMapEditorResult {
   const [palette, setPalette] = useState<ResolvedSymbol[]>([]);
   const [originalJson, setOriginalJson] = useState<MapgenJson | null>(null);
   const [selectedSymbol, setSelectedSymbol] = useState<string | null>(null);
-  const [tool, setTool] = useState<MapTool>("paint");
+  const [tool, setToolState] = useState<MapTool>("hand");
+  const [boxFilled, setBoxFilled] = useState(true);
   const [isDirty, setIsDirty] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -57,6 +62,10 @@ export function useMapEditor(): UseMapEditorResult {
   const historyIndexRef = useRef(-1);
   const [canUndo, setCanUndo] = useState(false);
   const [canRedo, setCanRedo] = useState(false);
+
+  // Track if we're in the middle of a paint stroke (for batched undo)
+  const paintStrokeActiveRef = useRef(false);
+  const gridBeforeStrokeRef = useRef<string[][] | null>(null);
 
   const pushHistory = useCallback((newGrid: string[][]) => {
     // Remove any redo states
@@ -151,15 +160,57 @@ export function useMapEditor(): UseMapEditorResult {
     setSelectedSymbol(symbol);
   }, []);
 
+  // Tool setter with box toggle logic
+  const setTool = useCallback((newTool: MapTool) => {
+    if (newTool === "box" && tool === "box") {
+      // Toggle filled/outline mode when pressing box again
+      setBoxFilled((prev) => !prev);
+    } else {
+      setToolState(newTool);
+    }
+  }, [tool]);
+
+  const toggleBoxFilled = useCallback(() => {
+    setBoxFilled((prev) => !prev);
+  }, []);
+
+  // For paint strokes: update cell without pushing history (batch at end)
   const updateCell = useCallback((row: number, col: number, symbol: string) => {
+    // Save state before first cell of stroke
+    if (!paintStrokeActiveRef.current) {
+      paintStrokeActiveRef.current = true;
+      setGrid((prev) => {
+        gridBeforeStrokeRef.current = prev.map(r => [...r]);
+        return prev;
+      });
+    }
+
     setGrid((prev) => {
       const newGrid = updateGridCell(prev, row, col, symbol);
       if (newGrid !== prev) {
-        pushHistory(newGrid);
         setIsDirty(true);
       }
       return newGrid;
     });
+  }, []);
+
+  // Call this at end of paint stroke to commit to history
+  const commitPaintStroke = useCallback(() => {
+    if (paintStrokeActiveRef.current && gridBeforeStrokeRef.current) {
+      setGrid((currentGrid) => {
+        // Only push if grid actually changed
+        const before = gridBeforeStrokeRef.current!;
+        const changed = before.some((row, ri) =>
+          row.some((cell, ci) => cell !== currentGrid[ri]?.[ci])
+        );
+        if (changed) {
+          pushHistory(currentGrid);
+        }
+        return currentGrid;
+      });
+    }
+    paintStrokeActiveRef.current = false;
+    gridBeforeStrokeRef.current = null;
   }, [pushHistory]);
 
   const updateCells = useCallback(
@@ -178,6 +229,13 @@ export function useMapEditor(): UseMapEditorResult {
     },
     [pushHistory]
   );
+
+  const getSymbolAt = useCallback((row: number, col: number): string | null => {
+    if (row >= 0 && row < grid.length && col >= 0 && col < (grid[0]?.length ?? 0)) {
+      return grid[row][col];
+    }
+    return null;
+  }, [grid]);
 
   const updateSymbolMapping = useCallback(
     (
@@ -283,7 +341,8 @@ export function useMapEditor(): UseMapEditorResult {
     setPalette([]);
     setOriginalJson(null);
     setSelectedSymbol(null);
-    setTool("paint");
+    setToolState("hand");
+    setBoxFilled(true);
     setIsDirty(false);
     setLoading(false);
     setError(null);
@@ -291,6 +350,8 @@ export function useMapEditor(): UseMapEditorResult {
     historyIndexRef.current = -1;
     setCanUndo(false);
     setCanRedo(false);
+    paintStrokeActiveRef.current = false;
+    gridBeforeStrokeRef.current = null;
   }, []);
 
   return {
@@ -298,6 +359,7 @@ export function useMapEditor(): UseMapEditorResult {
     palette,
     selectedSymbol,
     tool,
+    boxFilled,
     isDirty,
     loading,
     error,
@@ -306,13 +368,16 @@ export function useMapEditor(): UseMapEditorResult {
     loadEntity,
     selectSymbol,
     setTool,
+    toggleBoxFilled,
     updateCell,
     updateCells,
+    commitPaintStroke,
     updateSymbolMapping,
     addSymbol,
     getModifiedJson,
     undo,
     redo,
     reset,
+    getSymbolAt,
   };
 }

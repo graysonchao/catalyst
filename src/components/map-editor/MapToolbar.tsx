@@ -2,7 +2,9 @@ import type { MapTool, ResolvedSymbol } from "../../types";
 
 interface MapToolbarProps {
   tool: MapTool;
+  boxFilled: boolean;
   onToolChange: (tool: MapTool) => void;
+  onToggleBoxFilled: () => void;
   selectedSymbol: string | null;
   palette: ResolvedSymbol[];
   canUndo: boolean;
@@ -13,7 +15,9 @@ interface MapToolbarProps {
 
 export function MapToolbar({
   tool,
+  boxFilled,
   onToolChange,
+  onToggleBoxFilled,
   selectedSymbol,
   palette,
   canUndo,
@@ -52,22 +56,48 @@ export function MapToolbar({
       {/* Tool buttons */}
       <div className="flex items-center gap-1">
         <ToolButton
+          label="Hand"
+          shortcut="A"
+          icon="✋"
+          active={tool === "hand"}
+          onClick={() => onToolChange("hand")}
+        />
+        <ToolButton
           label="Paint"
+          shortcut="Q"
           icon="✏️"
           active={tool === "paint"}
           onClick={() => onToolChange("paint")}
         />
         <ToolButton
           label="Line"
+          shortcut="W"
           icon="╱"
           active={tool === "line"}
           onClick={() => onToolChange("line")}
         />
         <ToolButton
           label="Box"
-          icon="▢"
+          shortcut="E"
+          icon={boxFilled ? "▣" : "▢"}
           active={tool === "box"}
           onClick={() => onToolChange("box")}
+          secondaryAction={tool === "box" ? onToggleBoxFilled : undefined}
+          secondaryLabel={tool === "box" ? (boxFilled ? "Filled" : "Outline") : undefined}
+        />
+        <ToolButton
+          label="Fill"
+          shortcut="R"
+          icon="🪣"
+          active={tool === "fill"}
+          onClick={() => onToolChange("fill")}
+        />
+        <ToolButton
+          label="Pick"
+          shortcut="S"
+          icon="💧"
+          active={tool === "eyedropper"}
+          onClick={() => onToolChange("eyedropper")}
         />
       </div>
 
@@ -95,9 +125,12 @@ export function MapToolbar({
 
       {/* Tool hint */}
       <div className="ml-auto text-xs text-zinc-500">
-        {tool === "paint" && "Click and drag to paint"}
-        {tool === "line" && "Click start point, then click end point"}
-        {tool === "box" && "Click corner, then click opposite corner"}
+        {tool === "hand" && "Drag to pan, scroll to zoom"}
+        {tool === "paint" && "Click and drag to paint (Alt+click: pick)"}
+        {tool === "line" && "Click start, then click end"}
+        {tool === "box" && (boxFilled ? "Click corners to fill box" : "Click corners for outline")}
+        {tool === "fill" && "Click to flood fill"}
+        {tool === "eyedropper" && "Click to pick symbol"}
       </div>
     </div>
   );
@@ -105,24 +138,54 @@ export function MapToolbar({
 
 interface ToolButtonProps {
   label: string;
+  shortcut: string;
   icon: string;
   active: boolean;
   onClick: () => void;
+  secondaryAction?: () => void;
+  secondaryLabel?: string;
 }
 
-function ToolButton({ label, icon, active, onClick }: ToolButtonProps) {
+function ToolButton({
+  label,
+  shortcut,
+  icon,
+  active,
+  onClick,
+  secondaryAction,
+  secondaryLabel,
+}: ToolButtonProps) {
+  const handleClick = (e: React.MouseEvent) => {
+    // Right click toggles secondary action if available
+    if (e.button === 2 && secondaryAction) {
+      e.preventDefault();
+      secondaryAction();
+      return;
+    }
+    onClick();
+  };
+
   return (
     <button
-      onClick={onClick}
+      onClick={handleClick}
+      onContextMenu={(e) => {
+        if (secondaryAction) {
+          e.preventDefault();
+          secondaryAction();
+        }
+      }}
       className={`flex items-center gap-1 px-3 py-1 text-sm rounded ${
         active
           ? "bg-blue-600 text-white"
           : "bg-zinc-700 text-zinc-300 hover:bg-zinc-600"
       }`}
-      title={label}
+      title={`${label}${shortcut ? ` (${shortcut})` : ""}${secondaryLabel ? ` - ${secondaryLabel}` : ""}`}
     >
       <span>{icon}</span>
       <span>{label}</span>
+      {shortcut && (
+        <span className="text-xs opacity-60 ml-0.5">{shortcut}</span>
+      )}
     </button>
   );
 }

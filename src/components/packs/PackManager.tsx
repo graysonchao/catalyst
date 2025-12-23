@@ -1,4 +1,4 @@
-import { useMemo, useCallback } from "react";
+import { useMemo, useCallback, useState, useRef, useEffect } from "react";
 import type { PackId } from "../../types";
 import type { LoadedPack } from "../../hooks/useWorkspace";
 import { ModDirectoriesPanel } from "./ModDirectoriesPanel";
@@ -63,6 +63,32 @@ export function PackManager({
     }
   };
 
+  // Filter state
+  const [searchQuery, setSearchQuery] = useState("");
+  const [enabledCategories, setEnabledCategories] = useState<Set<string>>(new Set());
+  const [isSearchFocused, setIsSearchFocused] = useState(false);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  const categoriesInitialized = useRef(false);
+
+  // Get all unique categories
+  const allCategories = useMemo(() => {
+    const categories = new Set<string>();
+    for (const pack of packs.values()) {
+      if (pack.metadata?.category) {
+        categories.add(pack.metadata.category);
+      }
+    }
+    return Array.from(categories).sort();
+  }, [packs]);
+
+  // Initialize category filters when data loads
+  useEffect(() => {
+    if (!categoriesInitialized.current && allCategories.length > 0) {
+      setEnabledCategories(new Set(allCategories));
+      categoriesInitialized.current = true;
+    }
+  }, [allCategories]);
+
   // Sort load order to pin "Bright Nights" to top
   const sortedLoadOrder = useMemo(() => {
     return [...loadOrder].sort((a, b) => {
@@ -76,6 +102,74 @@ export function PackManager({
     });
   }, [loadOrder, packs]);
 
+  // Filter packs
+  const filteredLoadOrder = useMemo(() => {
+    return sortedLoadOrder.filter((packId) => {
+      const pack = packs.get(packId);
+      if (!pack) return false;
+
+      // Category filter
+      const category = pack.metadata?.category;
+      if (category && enabledCategories.size > 0 && enabledCategories.size < allCategories.length) {
+        if (!enabledCategories.has(category)) return false;
+      }
+
+      // Search filter
+      if (searchQuery) {
+        const q = searchQuery.toLowerCase();
+        const matchesName = pack.name.toLowerCase().includes(q);
+        const matchesId = pack.metadata?.modId?.toLowerCase().includes(q);
+        const matchesPath = pack.path.toLowerCase().includes(q);
+        const matchesAuthors = pack.metadata?.authors?.some(a => a.toLowerCase().includes(q));
+        const matchesDescription = pack.metadata?.description?.toLowerCase().includes(q);
+        if (!matchesName && !matchesId && !matchesPath && !matchesAuthors && !matchesDescription) {
+          return false;
+        }
+      }
+
+      return true;
+    });
+  }, [sortedLoadOrder, packs, searchQuery, enabledCategories, allCategories.length]);
+
+  // Keyboard shortcut for search
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === "f") {
+        e.preventDefault();
+        searchInputRef.current?.focus();
+        setIsSearchFocused(true);
+      }
+      if (e.key === "Escape" && isSearchFocused) {
+        setIsSearchFocused(false);
+        setSearchQuery("");
+        searchInputRef.current?.blur();
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isSearchFocused]);
+
+  const toggleCategory = useCallback((category: string) => {
+    setEnabledCategories((prev) => {
+      const next = new Set(prev);
+      if (next.has(category)) {
+        next.delete(category);
+      } else {
+        next.add(category);
+      }
+      return next;
+    });
+  }, []);
+
+  const selectAllCategories = useCallback(() => {
+    setEnabledCategories(new Set(allCategories));
+  }, [allCategories]);
+
+  const selectNoCategories = useCallback(() => {
+    setEnabledCategories(new Set());
+  }, []);
+
   return (
     <div className="flex flex-col h-full overflow-hidden">
       <ModDirectoriesPanel
@@ -84,11 +178,69 @@ export function PackManager({
         onAddDirectory={onAddModDirectory}
         onRemoveDirectory={onRemoveModDirectory}
       />
+      {/* Filter Controls */}
+      <div className="border-b border-zinc-700 bg-zinc-800 p-3 space-y-3 flex-shrink-0">
+        {/* Search bar */}
+        <div className="flex items-center gap-2">
+          <input
+            ref={searchInputRef}
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search packs... (Cmd+F)"
+            className="flex-1 px-3 py-1.5 bg-zinc-900 border border-zinc-600 rounded text-sm focus:outline-none focus:border-blue-500"
+            onFocus={() => setIsSearchFocused(true)}
+            onBlur={() => setIsSearchFocused(false)}
+          />
+          <span className="text-xs text-zinc-500">
+            {filteredLoadOrder.length} / {loadOrder.length} packs
+          </span>
+        </div>
+
+        {/* Category filters */}
+        {allCategories.length > 0 && (
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-xs text-zinc-400 font-medium">Categories:</span>
+            <button
+              onClick={selectAllCategories}
+              className="text-xs text-blue-400 hover:text-blue-300"
+            >
+              All
+            </button>
+            <button
+              onClick={selectNoCategories}
+              className="text-xs text-blue-400 hover:text-blue-300"
+            >
+              None
+            </button>
+            <span className="text-zinc-600">|</span>
+            {allCategories.map((category) => {
+              const enabled = enabledCategories.has(category);
+              return (
+                <button
+                  key={category}
+                  onClick={() => toggleCategory(category)}
+                  className={`px-2 py-0.5 text-xs rounded ${
+                    enabled
+                      ? "bg-green-600 text-white"
+                      : "bg-zinc-700 text-zinc-400"
+                  }`}
+                >
+                  {category}
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
       <div className="flex-1 overflow-auto p-4">
         <h2 className="text-lg font-semibold mb-3">Content Packs</h2>
 
-        {sortedLoadOrder.length === 0 ? (
-          <div className="text-zinc-500 text-sm">No content packs loaded</div>
+        {filteredLoadOrder.length === 0 ? (
+          <div className="text-zinc-500 text-sm">
+            {loadOrder.length === 0 ? "No content packs loaded" : "No packs match the current filters"}
+          </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm border-collapse">
@@ -106,7 +258,7 @@ export function PackManager({
                 </tr>
               </thead>
               <tbody>
-                {sortedLoadOrder.map((packId) => {
+                {filteredLoadOrder.map((packId) => {
                   const pack = packs.get(packId);
                   if (!pack) return null;
                   const meta = pack.metadata;

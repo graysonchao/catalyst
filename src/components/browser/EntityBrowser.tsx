@@ -8,6 +8,7 @@ import {
   createColumnHelper,
   SortingState,
   ColumnFiltersState,
+  ColumnSizingState,
 } from "@tanstack/react-table";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import type { PackId, EntityKey } from "../../types";
@@ -24,6 +25,7 @@ interface EntityBrowserProps {
 interface EntityRow {
   packId: PackId;
   packName: string;
+  packPath: string;
   entityKey: EntityKey;
   type: string;
   id: string;
@@ -37,7 +39,7 @@ const columns = [
   columnHelper.accessor("type", {
     header: "Type",
     cell: (info) => (
-      <span className="px-1 py-0.5 bg-zinc-700 rounded text-xs">
+      <span className="px-1 py-0.5 bg-zinc-700 rounded text-xs truncate block">
         {info.getValue()}
       </span>
     ),
@@ -63,15 +65,20 @@ const columns = [
   }),
   columnHelper.accessor("packName", {
     header: "Pack",
-    cell: (info) => <span className="text-zinc-400 text-xs">{info.getValue()}</span>,
+    cell: (info) => <span className="text-zinc-400 text-xs truncate block">{info.getValue()}</span>,
     size: 120,
   }),
   columnHelper.accessor("sourceFile", {
-    header: "Source",
-    cell: (info) => (
-      <span className="text-zinc-500 text-xs truncate block">{info.getValue()}</span>
-    ),
-    size: 180,
+    header: "Path",
+    cell: (info) => {
+      const fullPath = `${info.row.original.packPath}/${info.getValue()}`;
+      return (
+        <span className="text-zinc-500 text-xs truncate block" title={fullPath}>
+          {fullPath}
+        </span>
+      );
+    },
+    size: 300,
   }),
 ];
 
@@ -94,6 +101,7 @@ export function EntityBrowser({
     { id: "type", desc: false },
   ]);
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
+  const [columnSizing, setColumnSizing] = useState<ColumnSizingState>({});
 
   // Virtualization ref
   const tableContainerRef = useRef<HTMLDivElement>(null);
@@ -116,6 +124,7 @@ export function EntityBrowser({
           rows.push({
             packId,
             packName: pack.name,
+            packPath: pack.path,
             entityKey: entity.key,
             type,
             id: entity.id,
@@ -161,13 +170,13 @@ export function EntityBrowser({
   const filteredByToggles = useMemo(() => {
     let result = allEntities;
 
-    // Filter by enabled types
-    if (enabledTypes.size > 0 && enabledTypes.size < allTypes.length) {
+    // Filter by enabled types (if not all selected, filter - including when none selected)
+    if (enabledTypes.size < allTypes.length) {
       result = result.filter((e) => enabledTypes.has(e.type));
     }
 
-    // Filter by pack filter (additional filtering within enabled packs)
-    if (packFilter.size > 0 && packFilter.size < enabledLoadOrder.length) {
+    // Filter by pack filter (if not all selected, filter - including when none selected)
+    if (packFilter.size < enabledLoadOrder.length) {
       result = result.filter((e) => packFilter.has(e.packId));
     }
 
@@ -201,9 +210,12 @@ export function EntityBrowser({
     state: {
       sorting,
       columnFilters,
+      columnSizing,
     },
     onSortingChange: setSorting,
     onColumnFiltersChange: setColumnFilters,
+    onColumnSizingChange: setColumnSizing,
+    columnResizeMode: "onChange",
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
@@ -282,118 +294,125 @@ export function EntityBrowser({
   }, []);
 
   return (
-    <div className="flex flex-col h-full w-full overflow-hidden">
-      {/* Filter Controls */}
-      <div className="relative z-10 border-b border-zinc-700 bg-zinc-800 p-3 space-y-3 flex-shrink-0">
-        {/* Search bar */}
-        <div className="flex items-center gap-2">
-          <input
-            ref={searchInputRef}
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search entities... (Cmd+F)"
-            className="flex-1 px-3 py-1.5 bg-zinc-900 border border-zinc-600 rounded text-sm focus:outline-none focus:border-blue-500"
-            onFocus={() => setIsSearchFocused(true)}
-            onBlur={() => setIsSearchFocused(false)}
-          />
-          <span className="text-xs text-zinc-500">
-            {rows.length.toLocaleString()} / {allEntities.length.toLocaleString()} entities
-          </span>
-        </div>
-
-        {/* Pack filters */}
-        <div className="flex items-center gap-2 flex-wrap">
-          <span className="text-xs text-zinc-400 font-medium">Packs:</span>
-          {onLoadPack && (
-            <button
-              onClick={onLoadPack}
-              className="px-2 py-0.5 text-xs rounded bg-green-600 hover:bg-green-500 text-white"
-            >
-              + Load
-            </button>
-          )}
-          {enabledLoadOrder.length > 0 && (
-            <>
-              <span className="text-zinc-600">|</span>
-              <button
-                onClick={selectAllPacks}
-                className="text-xs text-blue-400 hover:text-blue-300"
-              >
-                All
-              </button>
-              <button
-                onClick={selectNoPacks}
-                className="text-xs text-blue-400 hover:text-blue-300"
-              >
-                None
-              </button>
-              <span className="text-zinc-600">|</span>
-            </>
-          )}
-          {enabledLoadOrder.map((packId) => {
-            const pack = packs.get(packId);
-            if (!pack) return null;
-            const inFilter = packFilter.has(packId);
-            return (
-              <button
-                key={packId}
-                onClick={() => togglePack(packId)}
-                className={`px-2 py-0.5 text-xs rounded ${
-                  inFilter
-                    ? "bg-blue-600 text-white"
-                    : "bg-zinc-700 text-zinc-400"
-                }`}
-              >
-                {pack.name}
-              </button>
-            );
-          })}
-        </div>
-
-        {/* Type filters */}
-        {allTypes.length > 0 && (
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-xs text-zinc-400 font-medium">Types:</span>
+    <div className="flex h-full w-full overflow-hidden">
+      {/* Left panel: Type filters */}
+      <div className="w-[15%] min-w-32 flex-shrink-0 border-r border-zinc-700 bg-zinc-800 flex flex-col">
+        <div className="px-2 py-1.5 border-b border-zinc-700 flex items-center justify-between">
+          <span className="text-xs font-medium text-zinc-400">Types</span>
+          <div className="flex gap-1">
             <button
               onClick={selectAllTypes}
               className="text-xs text-blue-400 hover:text-blue-300"
             >
               All
             </button>
+            <span className="text-zinc-600">/</span>
             <button
               onClick={selectNoTypes}
               className="text-xs text-blue-400 hover:text-blue-300"
             >
               None
             </button>
-            <span className="text-zinc-600">|</span>
-            {allTypes.slice(0, 20).map((type) => {
-              const enabled = enabledTypes.has(type);
+          </div>
+        </div>
+        <div className="flex-1 overflow-auto">
+          {allTypes.map((type) => {
+            const enabled = enabledTypes.has(type);
+            return (
+              <label
+                key={type}
+                className="flex items-center gap-2 px-2 py-0.5 hover:bg-zinc-700/50 cursor-pointer"
+              >
+                <input
+                  type="checkbox"
+                  checked={enabled}
+                  onChange={() => toggleType(type)}
+                  className="w-3 h-3"
+                />
+                <span className={`text-xs truncate ${enabled ? "text-zinc-200" : "text-zinc-500"}`}>
+                  {type}
+                </span>
+              </label>
+            );
+          })}
+        </div>
+        <div className="px-2 py-1 border-t border-zinc-700 text-xs text-zinc-500">
+          {enabledTypes.size} / {allTypes.length} types
+        </div>
+      </div>
+
+      {/* Main content */}
+      <div className="flex-1 flex flex-col overflow-hidden">
+        {/* Filter Controls */}
+        <div className="relative z-10 border-b border-zinc-700 bg-zinc-800 p-3 space-y-3 flex-shrink-0">
+          {/* Search bar */}
+          <div className="flex items-center gap-2">
+            <input
+              ref={searchInputRef}
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search entities... (Cmd+F)"
+              className="flex-1 px-3 py-1.5 bg-zinc-900 border border-zinc-600 rounded text-sm focus:outline-none focus:border-blue-500"
+              onFocus={() => setIsSearchFocused(true)}
+              onBlur={() => setIsSearchFocused(false)}
+            />
+            <span className="text-xs text-zinc-500">
+              {rows.length.toLocaleString()} / {allEntities.length.toLocaleString()} entities
+            </span>
+          </div>
+
+          {/* Pack filters */}
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-xs text-zinc-400 font-medium">Packs:</span>
+            {onLoadPack && (
+              <button
+                onClick={onLoadPack}
+                className="px-2 py-0.5 text-xs rounded bg-green-600 hover:bg-green-500 text-white"
+              >
+                + Load
+              </button>
+            )}
+            {enabledLoadOrder.length > 0 && (
+              <>
+                <span className="text-zinc-600">|</span>
+                <button
+                  onClick={selectAllPacks}
+                  className="text-xs text-blue-400 hover:text-blue-300"
+                >
+                  All
+                </button>
+                <button
+                  onClick={selectNoPacks}
+                  className="text-xs text-blue-400 hover:text-blue-300"
+                >
+                  None
+                </button>
+                <span className="text-zinc-600">|</span>
+              </>
+            )}
+            {enabledLoadOrder.map((packId) => {
+              const pack = packs.get(packId);
+              if (!pack) return null;
+              const inFilter = packFilter.has(packId);
               return (
                 <button
-                  key={type}
-                  onClick={() => toggleType(type)}
+                  key={packId}
+                  onClick={() => togglePack(packId)}
                   className={`px-2 py-0.5 text-xs rounded ${
-                    enabled
-                      ? "bg-green-600 text-white"
+                    inFilter
+                      ? "bg-blue-600 text-white"
                       : "bg-zinc-700 text-zinc-400"
                   }`}
                 >
-                  {type}
+                  {pack.name}
                 </button>
               );
             })}
-            {allTypes.length > 20 && (
-              <span className="text-xs text-zinc-500">
-                +{allTypes.length - 20} more
-              </span>
-            )}
           </div>
-        )}
-      </div>
+        </div>
 
-      {/* Virtualized Table */}
+        {/* Virtualized Table */}
       <div
         ref={tableContainerRef}
         className="relative flex-1 overflow-auto"
@@ -404,7 +423,7 @@ export function EntityBrowser({
             headerGroup.headers.map((header) => (
               <div
                 key={header.id}
-                className="px-2 py-1 text-left text-xs cursor-pointer hover:bg-zinc-700 select-none flex-shrink-0"
+                className="relative px-2 py-1 text-left text-xs cursor-pointer hover:bg-zinc-700 select-none flex-shrink-0"
                 style={{ width: header.getSize() }}
                 onClick={header.column.getToggleSortingHandler()}
               >
@@ -420,6 +439,15 @@ export function EntityBrowser({
                     <span className="text-zinc-600">↕</span>
                   )}
                 </div>
+                {/* Resize handle */}
+                <div
+                  onMouseDown={header.getResizeHandler()}
+                  onTouchStart={header.getResizeHandler()}
+                  onClick={(e) => e.stopPropagation()}
+                  className={`absolute right-0 top-0 bottom-0 w-2 cursor-col-resize hover:bg-blue-500/50 z-10 ${
+                    header.column.getIsResizing() ? "bg-blue-500" : ""
+                  }`}
+                />
               </div>
             ))
           )}
@@ -487,6 +515,7 @@ export function EntityBrowser({
             )}
           </div>
         )}
+      </div>
       </div>
     </div>
   );
