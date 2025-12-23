@@ -53,7 +53,7 @@ pub fn load_palette(
         for entry in WalkDir::new(&data_path)
             .into_iter()
             .filter_map(|e| e.ok())
-            .filter(|e| e.path().extension().map_or(false, |ext| ext == "json"))
+            .filter(|e| e.path().extension().is_some_and(|ext| ext == "json"))
         {
             if let Ok(content) = fs::read_to_string(entry.path()) {
                 if let Ok(json) = serde_json::from_str::<Value>(&content) {
@@ -79,10 +79,10 @@ fn find_palette_in_json(json: &Value, palette_id: &str) -> Option<Value> {
             None
         }
         Value::Object(obj) => {
-            if obj.get("type").and_then(|v| v.as_str()) == Some("palette") {
-                if obj.get("id").and_then(|v| v.as_str()) == Some(palette_id) {
-                    return Some(json.clone());
-                }
+            if obj.get("type").and_then(|v| v.as_str()) == Some("palette")
+                && obj.get("id").and_then(|v| v.as_str()) == Some(palette_id)
+            {
+                return Some(json.clone());
             }
             None
         }

@@ -51,7 +51,7 @@ pub fn validate_entity_json(value: &Value) -> ValidationResult {
         let has_id = value.get("id").is_some();
         let has_result = value.get("result").is_some();
 
-        if !has_id && !(is_recipe && has_result) {
+        if !(has_id || (is_recipe && has_result)) {
             result.add_error_with_path(
                 "MISSING_ID",
                 "Entity must have an 'id' field (or 'result' for recipes)",
@@ -165,6 +165,7 @@ fn extract_line_from_error(error: &str) -> Option<usize> {
 }
 
 /// Validate that an entity can be updated (check type/id changes)
+#[allow(dead_code)]
 pub fn validate_update(
     old_json: &Value,
     new_json: &Value,
@@ -189,6 +190,7 @@ pub fn validate_update(
 }
 
 /// Extract EntityMeta from validated JSON (assumes already validated)
+#[allow(dead_code)]
 pub fn extract_meta(json: &Value) -> Option<EntityMeta> {
     EntityMeta::from_json(json)
 }

@@ -38,6 +38,7 @@ impl ValidationResult {
         }
     }
 
+    #[allow(dead_code)]
     pub fn with_error(code: impl Into<String>, message: impl Into<String>) -> Self {
         Self {
             valid: false,
@@ -93,6 +94,7 @@ impl ValidationResult {
     }
 }
 
+#[allow(dead_code)]
 impl ValidationError {
     pub fn new(code: impl Into<String>, message: impl Into<String>) -> Self {
         Self {

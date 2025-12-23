@@ -77,6 +77,7 @@ pub struct TileMapping {
 
 /// Tracks sprite sheet ranges for global-to-local index conversion
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 struct SpriteSheetRange {
     file: String,
     start_index: i32,

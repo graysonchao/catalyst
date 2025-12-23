@@ -1,5 +1,5 @@
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Manager};
 
@@ -63,7 +63,7 @@ pub fn save_settings(app: AppHandle, settings: AppSettings) -> Result<(), String
 }
 
 /// Check if a directory contains a Cataclysm-BN binary
-fn has_bn_binary(path: &PathBuf) -> bool {
+fn has_bn_binary(path: &Path) -> bool {
     // Check for various binary names across platforms
     let binary_names = [
         "cataclysm-bn-tiles",

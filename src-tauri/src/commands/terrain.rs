@@ -39,7 +39,7 @@ pub fn list_terrain_types(game_path: &str) -> Result<Vec<TerrainInfo>, String> {
     for entry in WalkDir::new(&data_path)
         .into_iter()
         .filter_map(|e| e.ok())
-        .filter(|e| e.path().extension().map_or(false, |ext| ext == "json"))
+        .filter(|e| e.path().extension().is_some_and(|ext| ext == "json"))
     {
         if let Ok(content) = fs::read_to_string(entry.path()) {
             if let Ok(json) = serde_json::from_str::<Value>(&content) {
@@ -70,7 +70,7 @@ pub fn list_furniture_types(game_path: &str) -> Result<Vec<FurnitureInfo>, Strin
     for entry in WalkDir::new(&data_path)
         .into_iter()
         .filter_map(|e| e.ok())
-        .filter(|e| e.path().extension().map_or(false, |ext| ext == "json"))
+        .filter(|e| e.path().extension().is_some_and(|ext| ext == "json"))
     {
         if let Ok(content) = fs::read_to_string(entry.path()) {
             if let Ok(json) = serde_json::from_str::<Value>(&content) {
