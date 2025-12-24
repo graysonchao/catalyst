@@ -64,9 +64,11 @@ pub struct PackMetadata {
 #[serde(rename_all = "camelCase")]
 pub struct EntitySummary {
     pub key: EntityKey,
+    pub entity_type: String,
     pub id: String,
     pub display_name: Option<String>,
     pub source_file: PathBuf,
+    pub array_index: usize,
     pub dirty: bool,
 }
 
@@ -76,6 +78,8 @@ pub struct EntitySummary {
 pub struct EntityTree {
     /// Entities grouped by type
     pub by_type: HashMap<String, Vec<EntitySummary>>,
+    /// Entities grouped by source file (for tree view)
+    pub by_file: HashMap<PathBuf, Vec<EntitySummary>>,
 }
 
 /// Result of loading a pack
@@ -133,17 +137,28 @@ impl ContentPack {
 
     pub fn to_entity_tree(&self) -> EntityTree {
         let mut by_type: HashMap<String, Vec<EntitySummary>> = HashMap::new();
+        let mut by_file: HashMap<PathBuf, Vec<EntitySummary>> = HashMap::new();
 
         for (key, entity) in &self.entities {
             let summary = EntitySummary {
                 key: key.clone(),
+                entity_type: entity.meta.entity_type.clone(),
                 id: entity.meta.id.clone(),
                 display_name: entity.meta.display_name.clone(),
                 source_file: entity.source_file.clone(),
+                array_index: entity.array_index,
                 dirty: entity.dirty,
             };
+
+            // Group by type
             by_type
                 .entry(entity.meta.entity_type.clone())
+                .or_default()
+                .push(summary.clone());
+
+            // Group by file
+            by_file
+                .entry(entity.source_file.clone())
                 .or_default()
                 .push(summary);
         }
@@ -157,7 +172,12 @@ impl ContentPack {
             });
         }
 
-        EntityTree { by_type }
+        // Sort entities within each file by array_index to preserve original order
+        for entities in by_file.values_mut() {
+            entities.sort_by_key(|e| e.array_index);
+        }
+
+        EntityTree { by_type, by_file }
     }
 
     pub fn to_info(&self) -> PackInfo {

@@ -13,6 +13,9 @@ import {
 import { useVirtualizer } from "@tanstack/react-virtual";
 import type { PackId, EntityKey } from "../../types";
 import type { LoadedPack } from "../../hooks/useWorkspace";
+import { EntityTreeBrowser } from "./EntityTreeBrowser";
+
+type ViewMode = "list" | "tree";
 
 interface EntityBrowserProps {
   packs: Map<PackId, LoadedPack>;
@@ -89,6 +92,63 @@ export function EntityBrowser({
   onSelectEntity,
   onLoadPack,
 }: EntityBrowserProps) {
+  // View mode state - default to tree view
+  const [viewMode, setViewMode] = useState<ViewMode>("tree");
+
+  // If tree view is selected, delegate to EntityTreeBrowser
+  if (viewMode === "tree") {
+    return (
+      <div className="flex flex-col h-full w-full overflow-hidden">
+        {/* View toggle header */}
+        <div className="flex-shrink-0 border-b border-zinc-700 bg-zinc-800 px-3 py-1.5 flex items-center justify-end gap-2">
+          <span className="text-xs text-zinc-400 mr-2">View:</span>
+          <button
+            onClick={() => setViewMode("list")}
+            className="px-2 py-0.5 text-xs rounded bg-zinc-700 text-zinc-400 hover:bg-zinc-600"
+          >
+            List
+          </button>
+          <button
+            className="px-2 py-0.5 text-xs rounded bg-blue-600 text-white"
+          >
+            Tree
+          </button>
+        </div>
+        <div className="flex-1 overflow-hidden">
+          <EntityTreeBrowser
+            packs={packs}
+            loadOrder={loadOrder}
+            enabledPacks={enabledPacks}
+            onSelectEntity={onSelectEntity}
+            onLoadPack={onLoadPack}
+          />
+        </div>
+      </div>
+    );
+  }
+
+  // List view (original implementation)
+  return (
+    <EntityListView
+      packs={packs}
+      loadOrder={loadOrder}
+      enabledPacks={enabledPacks}
+      onSelectEntity={onSelectEntity}
+      onLoadPack={onLoadPack}
+      onSwitchToTree={() => setViewMode("tree")}
+    />
+  );
+}
+
+// List view component (extracted from original EntityBrowser)
+function EntityListView({
+  packs,
+  loadOrder,
+  enabledPacks,
+  onSelectEntity,
+  onLoadPack,
+  onSwitchToTree,
+}: EntityBrowserProps & { onSwitchToTree: () => void }) {
   // Filter state
   const [enabledTypes, setEnabledTypes] = useState<Set<string>>(new Set());
   const [packFilter, setPackFilter] = useState<Set<PackId>>(new Set());
@@ -345,7 +405,7 @@ export function EntityBrowser({
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Filter Controls */}
         <div className="relative z-10 border-b border-zinc-700 bg-zinc-800 p-3 space-y-3 flex-shrink-0">
-          {/* Search bar */}
+          {/* Search bar with view toggle */}
           <div className="flex items-center gap-2">
             <input
               ref={searchInputRef}
@@ -360,6 +420,19 @@ export function EntityBrowser({
             <span className="text-xs text-zinc-500">
               {rows.length.toLocaleString()} / {allEntities.length.toLocaleString()} entities
             </span>
+            <span className="text-zinc-600">|</span>
+            <span className="text-xs text-zinc-400">View:</span>
+            <button
+              className="px-2 py-0.5 text-xs rounded bg-blue-600 text-white"
+            >
+              List
+            </button>
+            <button
+              onClick={onSwitchToTree}
+              className="px-2 py-0.5 text-xs rounded bg-zinc-700 text-zinc-400 hover:bg-zinc-600"
+            >
+              Tree
+            </button>
           </div>
 
           {/* Pack filters */}

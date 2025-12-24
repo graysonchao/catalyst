@@ -37,14 +37,17 @@ export interface WorkspaceState {
 
 export interface EntitySummary {
   key: EntityKey;
+  entityType: string;
   id: string;
   displayName: string | null;
   sourceFile: string;
+  arrayIndex: number;
   dirty: boolean;
 }
 
 export interface EntityTree {
   byType: Record<string, EntitySummary[]>;
+  byFile: Record<string, EntitySummary[]>;
 }
 
 export interface LoadStats {
